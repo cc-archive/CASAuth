@@ -17,6 +17,7 @@
  * Worked with the code by Christophe Naslain ( chris [dot] n [at] free [dot] fr)
  * Which was based on the original script using CAS Utils by Victor Chen (Yvchen [at] sfu [dot] ca)
  * Cleaned up and bugfixed by Stefan Sundin (recover89@gmail.com)
+ * Modifications for CCID by Rob Myers rob@robmyers.org, (c) 2015 Creative Commons
  */
 
 $wgExtensionCredits["other"][] = array(
@@ -33,10 +34,10 @@ $wgExtensionCredits["other"][] = array(
 
 $CASAuth = array(
 	"phpCAS"         => "$IP/extensions/CASAuth/CAS", // Path to phpCAS directory.
-	"Server"         => "secure.its.yale.edu",        // Address to CAS server.
+	"Server"         => "login.creativecommons.org",  // Address to CAS server.
 	"Port"           => 443,                          // Port to CAS server. Default: 443.
-	"Url"            => "/cas/servlet/",              // Subdir to CAS authentication.
-	"Version"        => "1.0",                        // CAS version, should be either 1.0 or 2.0.
+	"Url"            => "/",                          // Subdir to CAS authentication.
+	"Version"        => "2.0",                        // CAS version, should be either 1.0 or 2.0.
 	"CreateAccounts" => true,                         // Should CASAuth create accounts on the wiki? Should be true unless all accounts already exists on the wiki!
 	"PwdSecret"      => "a random string of letters", // A random string that is used when generating the MediaWiki password for this user. YOU SHOULD EDIT THIS TO A VERY RANDOM STRING! YOU SHOULD ALSO KEEP THIS A SECRET!
 	"EmailDomain"    => "yale.edu",                   // The default domain for new users email address (is appended to the username).
@@ -74,20 +75,26 @@ function casLogin($user, &$result) {
 			phpCAS::client($CASAuth["Version"], $CASAuth["Server"], $CASAuth["Port"], $CASAuth["Url"], false);
 			phpCAS::setNoCasServerValidation();
 			phpCAS::forceAuthentication(); //Will redirect to CAS server if not logged in
-			
-			// Get username
-			$username = phpCAS::getUser();
-			
+
+			// Get uid
+			$casuid = phpCAS::getUser();
+
+			// Make unique name for CAS user
+			$attr = phpCAS::getAttributes();
+			$ccid_name = 'CCID-' . $attr['global'];
+
 			// Get MediaWiki user
-			$u = User::newFromName($username);
+			$u = User::newFromName($ccid_name);
 			
 			// Create a new account if the user does not exists
 			if ($u->getID() == 0 && $CASAuth["CreateAccounts"]) {
+				$nickname = $attr['nickname'];
 				// Create the user
 				$u->addToDatabase();
-				$u->setRealName($username);
-				$u->setEmail($username."@".$CASAuth["EmailDomain"]);
-				$u->setPassword( md5($username.$CASAuth["PwdSecret"]) ); //PwdSecret is used to salt the username, which is then used to create an md5 hash which becomes the password
+				$u->setRealName($nickname);
+				$u->setEmail($casuid);
+				$u->confirmEmail();
+				$u->setPassword( md5($casuid.$CASAuth["PwdSecret"]) ); //PwdSecret is used to salt the casuid, which is then used to create an md5 hash which becomes the password
 				$u->setToken();
 				$u->saveSettings();
 				
