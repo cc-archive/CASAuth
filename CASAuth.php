@@ -17,7 +17,8 @@
  * Worked with the code by Christophe Naslain ( chris [dot] n [at] free [dot] fr)
  * Which was based on the original script using CAS Utils by Victor Chen (Yvchen [at] sfu [dot] ca)
  * Cleaned up and bugfixed by Stefan Sundin (recover89@gmail.com)
- * Modifications for CCID by Rob Myers rob@robmyers.org, (c) 2015 Creative Commons
+ * Modifications for CCID by Rob Myers rob@robmyers.org,
+ *  (c) 2015, 2016 Creative Commons
  */
 
 $wgExtensionCredits["other"][] = array(
@@ -42,6 +43,7 @@ $CASAuth = array(
 	"PwdSecret"      => "a random string of letters", // A random string that is used when generating the MediaWiki password for this user. YOU SHOULD EDIT THIS TO A VERY RANDOM STRING! YOU SHOULD ALSO KEEP THIS A SECRET!
 	"EmailDomain"    => "yale.edu",                   // The default domain for new users email address (is appended to the username).
 	"RememberMe"     => true,                         // Log in users with the 'Remember me' option.
+	"ValidateReminderURL" => "ValidateReminder",      // URL to send un-validated users to
 );
 
 //--------------------------------------------------------------------------
@@ -75,7 +77,6 @@ function casLogin($user, &$result) {
 			phpCAS::client($CASAuth["Version"], $CASAuth["Server"], $CASAuth["Port"], $CASAuth["Url"], false);
 			phpCAS::setNoCasServerValidation();
 			phpCAS::forceAuthentication(); //Will redirect to CAS server if not logged in
-
 			// Get uid
 			$casuid = phpCAS::getUser();
 
@@ -85,7 +86,15 @@ function casLogin($user, &$result) {
 
 			// Get MediaWiki user
 			$u = User::newFromName($ccid_name);
-			
+
+			// If the user hasn't validated they have no account here
+			if ($u === false) {
+				// Remind them to validate
+				$wgOut->redirect($CASAuth["ValidateReminderURL"]);
+				// Early return rather than indent rest of function
+				return true;
+			}
+
 			// Create a new account if the user does not exists
 			if ($u->getID() == 0 && $CASAuth["CreateAccounts"]) {
 				$nickname = $attr['nickname'];
